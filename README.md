@@ -124,17 +124,27 @@ dotnet run  --project sample/DxDialogService.Sample   # open the printed localho
 
 ## Publishing
 
-Tag a release to publish to NuGet.org via GitHub Actions:
+Publishing uses **NuGet Trusted Publishing** (OIDC) — no long-lived API key is stored.
+
+One-time setup on nuget.org (Account → **Trusted Publishing**), create a policy with:
+- **Repository owner:** `SaravananDCK`
+- **Repository:** `DxDialogService`
+- **Workflow file:** `publish.yml`
+
+Then in the GitHub repo configure:
+- Repository **variable** `NUGET_USER` — your nuget.org username (used by the `NuGet/login` action).
+- Repository **secret** `DEVEXPRESS_NUGET_FEED` — your DevExpress feed URL (full
+  `.../api/v3/index.json`) so CI can restore `DevExpress.Blazor`.
+
+Tag a release to publish:
 
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The workflow needs two repository secrets:
-- `NUGET_API_KEY` — your nuget.org API key (push).
-- `DEVEXPRESS_NUGET_FEED` — your DevExpress feed URL (full `.../api/v3/index.json`) so CI can
-  restore `DevExpress.Blazor`.
+The workflow requests a GitHub OIDC token (`id-token: write`), exchanges it for a short-lived
+NuGet key via `NuGet/login`, then pushes the package.
 
 ## License
 

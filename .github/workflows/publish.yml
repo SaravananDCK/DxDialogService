@@ -5,6 +5,10 @@ on:
     tags: [ 'v*.*.*' ]   # e.g. v1.0.0
   workflow_dispatch:
 
+permissions:
+  contents: read
+  id-token: write   # required for NuGet Trusted Publishing (OIDC)
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -48,5 +52,14 @@ jobs:
             -c Release --no-restore -o ./artifacts \
             ${VERSION:+-p:Version=$VERSION}
 
+      # Trusted Publishing: exchanges the GitHub OIDC token for a short-lived NuGet
+      # API key. No long-lived secret needed. Requires a trusted-publisher policy on
+      # nuget.org and the repo variable NUGET_USER set to your nuget.org username.
+      - name: NuGet login (Trusted Publishing)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
       - name: Push to NuGet.org
-        run: dotnet nuget push "./artifacts/*.nupkg" -k "${{ secrets.NUGET_API_KEY }}" -s https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "./artifacts/*.nupkg" -k "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" -s https://api.nuget.org/v3/index.json --skip-duplicate
