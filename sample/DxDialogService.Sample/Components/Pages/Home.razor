@@ -1,0 +1,61 @@
+@page "/"
+@inject DialogService DialogService
+
+<PageTitle>DxDialogService</PageTitle>
+
+<h1>DxDialogService</h1>
+
+<p>A programmatic <code>DialogService</code> API, rendered with DevExpress <code>DxPopup</code>.</p>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <DxButton Text="Alert" Click="ShowAlert" />
+    <DxButton Text="Confirm" Click="ShowConfirm" RenderStyle="ButtonRenderStyle.Secondary" />
+    <DxButton Text="Component dialog (nestable)" Click="ShowComponentDialog" RenderStyle="ButtonRenderStyle.Info" />
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <span class="align-self-center me-1 text-muted">Side panel:</span>
+    <DxButton Text="Right" Click="@(() => ShowSide(DialogPosition.Right))" RenderStyle="ButtonRenderStyle.Success" />
+    <DxButton Text="Left" Click="@(() => ShowSide(DialogPosition.Left))" RenderStyle="ButtonRenderStyle.Success" />
+    <DxButton Text="Top" Click="@(() => ShowSide(DialogPosition.Top))" RenderStyle="ButtonRenderStyle.Success" />
+    <DxButton Text="Bottom" Click="@(() => ShowSide(DialogPosition.Bottom))" RenderStyle="ButtonRenderStyle.Success" />
+</div>
+
+<p class="text-muted">
+    Open the centered or side dialog, then use its <em>Open nested…</em> buttons to stack popups.
+    Opening a nested centered dialog dims the side drawer behind it.
+</p>
+
+<pre class="border rounded p-2 bg-light">@log</pre>
+
+@code {
+    private string log = "(results appear here)";
+
+    private async Task ShowAlert()
+    {
+        await DialogService.Alert("This is an alert rendered in a DxPopup.", "Alert");
+        log = "Alert closed.";
+    }
+
+    private async Task ShowConfirm()
+    {
+        var result = await DialogService.Confirm("Are you sure?", "Please confirm");
+        log = $"Confirm result: {(result?.ToString() ?? "dismissed")}";
+    }
+
+    private async Task ShowComponentDialog()
+    {
+        var result = await DialogService.OpenAsync<NestedDialog>("Level 1",
+            new Dictionary<string, object?> { { "Name", "Ada Lovelace" }, { "Level", 1 }, { "IsSide", false } },
+            new DialogOptions { Width = "500px", Draggable = true, Resizable = true });
+        log = $"Centered dialog result: {result?.ToString() ?? "dismissed"}";
+    }
+
+    private async Task ShowSide(DialogPosition position)
+    {
+        var result = await DialogService.OpenSideAsync<NestedDialog>($"Side panel ({position})",
+            new Dictionary<string, object?> { { "Name", "Katherine Johnson" }, { "Level", 1 }, { "IsSide", true } },
+            new SideDialogOptions { Position = position, Width = "420px" });
+        log = $"Side dialog ({position}) result: {result?.ToString() ?? "dismissed"}";
+    }
+}

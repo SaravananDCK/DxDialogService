@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/sample/">
+    <Project Path="sample/DxDialogService.Sample/DxDialogService.Sample.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/DxDialogService/DxDialogService.csproj" />
+  </Folder>
+</Solution>

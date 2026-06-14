@@ -1,0 +1,16 @@
+html, body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* DxDialogService confirm/alert layout (neutral) */
+.dxds-dialog-confirm-message,
+.dxds-dialog-alert-message {
+    margin: 0 0 1.25rem 0;
+}
+
+.dxds-dialog-confirm-buttons,
+.dxds-dialog-alert-buttons {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}

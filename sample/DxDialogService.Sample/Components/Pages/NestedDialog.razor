@@ -1,0 +1,81 @@
+@inject DialogService DialogService
+
+@* Recursive test component: opens further dialogs from inside a dialog (centered or side). *@
+<div class="d-flex flex-column gap-3">
+    <p class="mb-0">
+        You are at <b>level @Level</b> (@(IsSide ? "side panel" : "centered dialog")).
+    </p>
+
+    <DxTextBox @bind-Text="@name" NullText="Name" />
+
+    <div class="d-flex flex-wrap gap-2">
+        <DxButton Text="Open nested centered" Click="OpenNestedCentered" RenderStyle="ButtonRenderStyle.Info" />
+        <DxButton Text="Open confirm" Click="OpenConfirm" RenderStyle="ButtonRenderStyle.Secondary" />
+        <DxButton Text="Open alert" Click="OpenAlert" RenderStyle="ButtonRenderStyle.Secondary" />
+    </div>
+
+    @if (lastResult != null)
+    {
+        <div class="border rounded p-2 bg-light"><small>Nested result: @lastResult</small></div>
+    }
+
+    <div class="d-flex gap-2 justify-content-end">
+        <DxButton Text="Save" Click="Save" />
+        <DxButton Text="Cancel" RenderStyle="ButtonRenderStyle.Secondary" Click="CancelClose" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public int Level { get; set; } = 1;
+    [Parameter] public bool IsSide { get; set; }
+
+    [CascadingParameter] public Dialog? Dialog { get; set; }
+
+    private string name = "";
+    private string? lastResult;
+
+    protected override void OnInitialized() => name = Name;
+
+    private async Task OpenNestedCentered()
+    {
+        var result = await DialogService.OpenAsync<NestedDialog>($"Level {Level + 1}",
+            new Dictionary<string, object?>
+            {
+                { "Name", name },
+                { "Level", Level + 1 },
+                { "IsSide", false }
+            },
+            new DialogOptions { Width = "460px", Draggable = true, Resizable = true });
+
+        lastResult = result?.ToString() ?? "dismissed";
+        StateHasChanged();
+    }
+
+    private async Task OpenConfirm()
+    {
+        var result = await DialogService.Confirm($"Confirm from level {Level}?", "Confirm");
+        lastResult = $"confirm = {result?.ToString() ?? "dismissed"}";
+        StateHasChanged();
+    }
+
+    private async Task OpenAlert()
+    {
+        await DialogService.Alert($"Alert raised from level {Level}.", "Alert");
+        lastResult = "alert acknowledged";
+        StateHasChanged();
+    }
+
+    // Side dialogs must be closed via CloseSide; centered via Close.
+    private void Save()
+    {
+        if (IsSide) DialogService.CloseSide(name);
+        else DialogService.Close(name);
+    }
+
+    private void CancelClose()
+    {
+        if (IsSide) DialogService.CloseSide(null);
+        else DialogService.Close(null);
+    }
+}

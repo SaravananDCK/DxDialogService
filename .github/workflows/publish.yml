@@ -1,0 +1,52 @@
+name: Publish NuGet
+
+on:
+  push:
+    tags: [ 'v*.*.*' ]   # e.g. v1.0.0
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # DevExpress.Blazor is a licensed package on a private feed. Add your personal
+      # DevExpress NuGet feed URL (the full .../api/v3/index.json incl. token) as the
+      # repository secret DEVEXPRESS_NUGET_FEED so restore can resolve it.
+      - name: Add DevExpress NuGet source
+        env:
+          DX_FEED: ${{ secrets.DEVEXPRESS_NUGET_FEED }}
+        run: |
+          if [ -n "$DX_FEED" ]; then
+            dotnet nuget add source "$DX_FEED" -n DevExpress
+          else
+            echo "::warning::DEVEXPRESS_NUGET_FEED secret not set; restore will likely fail."
+          fi
+
+      - name: Derive version from tag
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore
+        run: dotnet restore src/DxDialogService/DxDialogService.csproj
+
+      - name: Pack
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          dotnet pack src/DxDialogService/DxDialogService.csproj \
+            -c Release --no-restore -o ./artifacts \
+            ${VERSION:+-p:Version=$VERSION}
+
+      - name: Push to NuGet.org
+        run: dotnet nuget push "./artifacts/*.nupkg" -k "${{ secrets.NUGET_API_KEY }}" -s https://api.nuget.org/v3/index.json --skip-duplicate

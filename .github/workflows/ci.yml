@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Add DevExpress NuGet source
+        env:
+          DX_FEED: ${{ secrets.DEVEXPRESS_NUGET_FEED }}
+        run: |
+          if [ -n "$DX_FEED" ]; then
+            dotnet nuget add source "$DX_FEED" -n DevExpress
+          else
+            echo "::warning::DEVEXPRESS_NUGET_FEED secret not set; restore will likely fail."
+          fi
+
+      - name: Build
+        run: dotnet build src/DxDialogService/DxDialogService.csproj -c Release

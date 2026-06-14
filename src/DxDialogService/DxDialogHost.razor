@@ -1,0 +1,322 @@
+@using System.ComponentModel
+@using System.Drawing
+@using DevExpress.Blazor
+@implements IDisposable
+@inject DialogService Service
+
+@* Centered / modal dialogs *@
+@foreach (var dialog in dialogs)
+{
+    var opt = dialog.Options!;
+    <DxPopup @key="dialog"
+             Visible="true"
+             ShowHeader="opt.ShowTitle"
+             ShowCloseButton="opt.ShowClose"
+             CloseOnEscape="opt.CloseDialogOnEsc"
+             CloseOnOutsideClick="opt.CloseDialogOnOverlayClick"
+             AllowDrag="opt.Draggable"
+             AllowResize="opt.Resizable"
+             ApplyBackgroundShading="true"
+             Width="@NullIfEmpty(opt.Width)"
+             Height="@NullIfEmpty(opt.Height)"
+             MinWidth="@NullIfEmpty(opt.Width)"
+             PositionX="ParsePx(opt.Left)"
+             PositionY="ParsePx(opt.Top)"
+             CssClass="@ClassNames("dxds-dialog", opt.CssClass)"
+             HeaderCssClass="@NullIfEmpty(opt.WrapperCssClass)"
+             BodyCssClass="@NullIfEmpty(opt.ContentCssClass)"
+             Closing="@(args => OnPopupClosing(args))"
+             DragCompleted="@(args => OnDragCompleted(args, opt))"
+             ResizeCompleted="@(args => OnResizeCompleted(args, opt))">
+        <HeaderContentTemplate Context="header">
+            @if (opt.TitleContent != null)
+            {
+                @opt.TitleContent(Service)
+            }
+            else
+            {
+                @dialog.Title
+            }
+        </HeaderContentTemplate>
+        <BodyContentTemplate Context="popup">
+            @BuildBody(dialog)
+        </BodyContentTemplate>
+    </DxPopup>
+}
+
+@* Side / drawer dialog *@
+@if (sideDialog != null && sideDialogOptions != null)
+{
+    var sopt = sideDialogOptions;
+    <DxPopup @key="sideDialog"
+             Visible="true"
+             ShowHeader="sopt.ShowTitle"
+             HeaderText="@sideDialog.Title"
+             ShowCloseButton="sopt.ShowClose"
+             CloseOnEscape="true"
+             CloseOnOutsideClick="sopt.CloseDialogOnOverlayClick"
+             ApplyBackgroundShading="sopt.ShowMask"
+             HorizontalAlignment="GetSideHorizontal(sopt.Position)"
+             VerticalAlignment="GetSideVertical(sopt.Position)"
+             Width="@SideWidth(sopt)"
+             Height="@SideHeight(sopt)"
+             CssClass="@SideCssClass(sopt)"
+             Closing="@(args => OnSidePopupClosing(args))">
+        <BodyContentTemplate Context="popup">
+            @sideDialogContent
+        </BodyContentTemplate>
+    </DxPopup>
+}
+
+@code {
+    private readonly List<Dialog> dialogs = new();
+
+    private Dialog? sideDialog;
+    private SideDialogOptions? sideDialogOptions;
+    private RenderFragment? sideDialogContent;
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        Service.OnOpen += OnOpen;
+        Service.OnClose += OnClose;
+        Service.OnRefresh += OnRefresh;
+        Service.OnSideOpen += OnSideOpen;
+        Service.OnSideClose += OnSideClose;
+    }
+
+    // ----- Centered dialogs -----
+
+    private void OnOpen(string? title, Type type, Dictionary<string, object?> parameters, DialogOptions options)
+    {
+        var dialog = new Dialog { Title = title, Type = type, Parameters = parameters, Options = options };
+        options.PropertyChanged += OnOptionsChanged;
+
+        InvokeAsync(() =>
+        {
+            dialogs.Add(dialog);
+            StateHasChanged();
+        });
+    }
+
+    private void OnClose(dynamic result)
+    {
+        InvokeAsync(() =>
+        {
+            var dialog = dialogs.LastOrDefault();
+            if (dialog != null)
+            {
+                if (dialog.Options != null)
+                {
+                    dialog.Options.PropertyChanged -= OnOptionsChanged;
+                }
+                dialogs.Remove(dialog);
+            }
+            StateHasChanged();
+        });
+    }
+
+    private void OnRefresh() => InvokeAsync(StateHasChanged);
+
+    private void OnOptionsChanged(object? sender, PropertyChangedEventArgs e) => InvokeAsync(StateHasChanged);
+
+    // DxPopup raises Closing for user-initiated close (ESC, close button, overlay click).
+    // The dialogs list is the single source of truth for visibility, so we cancel the
+    // popup's own hide and route the request through the service (which honors CanClose).
+    private async Task OnPopupClosing(PopupClosingEventArgs args)
+    {
+        if (args.CloseReason == PopupCloseReason.Programmatically)
+        {
+            return;
+        }
+
+        args.Cancel = true;
+        await Service.TryCloseAsync(null);
+    }
+
+    private void OnDragCompleted(PopupDragCompletedEventArgs args, DialogOptions options)
+        => options.Drag?.Invoke(args.End);
+
+    private void OnResizeCompleted(PopupResizeCompletedEventArgs args, DialogOptions options)
+        => options.Resize?.Invoke(args.Size);
+
+    private RenderFragment BuildBody(Dialog dialog) => builder =>
+    {
+        var options = dialog.Options;
+
+        // Inline content dialogs (Open/OpenAsync with a RenderFragment).
+        if (options?.ChildContent != null)
+        {
+            builder.AddContent(0, options.ChildContent(Service));
+            return;
+        }
+
+        if (dialog.Type == null)
+        {
+            return;
+        }
+
+        // Component dialogs: cascade the Dialog instance and render the component with its parameters.
+        builder.OpenComponent<CascadingValue<Dialog>>(0);
+        builder.AddAttribute(1, "Value", dialog);
+        builder.AddAttribute(2, "IsFixed", true);
+        builder.AddAttribute(3, "ChildContent", (RenderFragment)(inner =>
+        {
+            inner.OpenComponent(0, dialog.Type);
+            if (dialog.Parameters != null)
+            {
+                foreach (var parameter in dialog.Parameters)
+                {
+                    inner.AddAttribute(1, parameter.Key, parameter.Value);
+                }
+            }
+            inner.CloseComponent();
+        }));
+        builder.CloseComponent();
+    };
+
+    // ----- Side dialog -----
+
+    private void OnSideOpen(Type sideComponent, Dictionary<string, object?> parameters, SideDialogOptions options)
+    {
+        sideDialogOptions = options;
+
+        var dialogOptions = new DialogOptions
+        {
+            ShowTitle = options.ShowTitle,
+            ShowClose = options.ShowClose,
+            Width = options.Width,
+            Height = options.Height,
+            Style = options.Style,
+            CloseDialogOnOverlayClick = options.CloseDialogOnOverlayClick,
+            CssClass = options.CssClass,
+            WrapperCssClass = options.WrapperCssClass,
+            ContentCssClass = options.ContentCssClass,
+            CloseTabIndex = options.CloseTabIndex,
+            TitleContent = options.TitleContent,
+            AriaLabel = options.AriaLabel,
+            CloseAriaLabel = options.CloseAriaLabel
+        };
+
+        sideDialog = new Dialog { Title = options.Title, Type = sideComponent, Parameters = parameters, Options = dialogOptions };
+
+        sideDialogContent = builder =>
+        {
+            builder.OpenComponent<CascadingValue<Dialog>>(0);
+            builder.AddAttribute(1, "Value", sideDialog);
+            builder.AddAttribute(2, "IsFixed", true);
+            builder.AddAttribute(3, "ChildContent", (RenderFragment)(inner =>
+            {
+                inner.OpenComponent(0, sideComponent);
+                foreach (var parameter in parameters)
+                {
+                    inner.AddAttribute(1, parameter.Key, parameter.Value);
+                }
+                inner.CloseComponent();
+            }));
+            builder.CloseComponent();
+        };
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnSidePopupClosing(PopupClosingEventArgs args)
+    {
+        if (args.CloseReason == PopupCloseReason.Programmatically)
+        {
+            return;
+        }
+
+        args.Cancel = true;
+        await Service.TryCloseSideAsync(null);
+    }
+
+    private void OnSideClose(dynamic result)
+    {
+        InvokeAsync(() =>
+        {
+            sideDialog = null;
+            sideDialogOptions = null;
+            sideDialogContent = null;
+            StateHasChanged();
+            Service.OnSideCloseComplete();
+        });
+    }
+
+    // ----- Helpers -----
+
+    private static string? NullIfEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
+
+    private static string ClassNames(string baseClass, string? extra)
+        => string.IsNullOrEmpty(extra) ? baseClass : $"{baseClass} {extra}";
+
+    private string SideCssClass(SideDialogOptions options)
+    {
+        var css = $"dxds-dialog-side dxds-dialog-side-{options.Position.ToString().ToLowerInvariant()}";
+        // Dim the drawer while a centered dialog is stacked above it.
+        if (dialogs.Count > 0)
+        {
+            css += " dxds-dialog-side-dimmed";
+        }
+        return ClassNames(css, options.CssClass);
+    }
+
+    private static int? ParsePx(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return null;
+        var trimmed = value.Trim();
+        if (trimmed.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[..^2].Trim();
+        }
+        return double.TryParse(trimmed, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var n)
+            ? (int)Math.Round(n)
+            : null;
+    }
+
+    private static HorizontalAlignment? GetSideHorizontal(DialogPosition position) => position switch
+    {
+        DialogPosition.Left => HorizontalAlignment.Left,
+        DialogPosition.Right => HorizontalAlignment.Right,
+        _ => HorizontalAlignment.Center
+    };
+
+    private static VerticalAlignment? GetSideVertical(DialogPosition position) => position switch
+    {
+        DialogPosition.Top => VerticalAlignment.Top,
+        DialogPosition.Bottom => VerticalAlignment.Bottom,
+        _ => VerticalAlignment.Top
+    };
+
+    // Side dialogs fill the cross axis: left/right -> full height, top/bottom -> full width.
+    private static string SideWidth(SideDialogOptions options)
+    {
+        if (options.Position is DialogPosition.Top or DialogPosition.Bottom) return "100vw";
+        return !string.IsNullOrEmpty(options.Width) ? options.Width! : "400px";
+    }
+
+    private static string SideHeight(SideDialogOptions options)
+    {
+        if (options.Position is DialogPosition.Left or DialogPosition.Right) return "100vh";
+        return !string.IsNullOrEmpty(options.Height) ? options.Height! : "300px";
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        Service.OnOpen -= OnOpen;
+        Service.OnClose -= OnClose;
+        Service.OnRefresh -= OnRefresh;
+        Service.OnSideOpen -= OnSideOpen;
+        Service.OnSideClose -= OnSideClose;
+
+        foreach (var dialog in dialogs)
+        {
+            if (dialog.Options != null)
+            {
+                dialog.Options.PropertyChanged -= OnOptionsChanged;
+            }
+        }
+    }
+}
