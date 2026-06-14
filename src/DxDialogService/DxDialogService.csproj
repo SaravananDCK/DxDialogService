@@ -12,7 +12,7 @@
   <!-- NuGet package metadata -->
   <PropertyGroup>
     <PackageId>DxDialogService</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>SaravananDCK</Authors>
     <Title>DxDialogService — programmatic dialog service for DevExpress Blazor</Title>
     <Description>A programmatic dialog service for Blazor (Open/OpenAsync&lt;T&gt;, Confirm, Alert, side panels, nested/stacked dialogs, draggable/resizable, CanClose) rendered with the DevExpress DxPopup component.</Description>
@@ -43,7 +43,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
-    <PackageReference Include="DevExpress.Blazor" Version="25.2.6" />
+    <PackageReference Include="DevExpress.Blazor" Version="25.2.*" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 

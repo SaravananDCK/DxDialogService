@@ -21,7 +21,8 @@ markup and toggle a `Visible` flag. This library gives you the ergonomic *call-a
 
 - .NET 10 / Blazor
 - **DevExpress Blazor** (`DevExpress.Blazor`). It's a licensed package on the DevExpress NuGet feed;
-  you need your own DevExpress license and feed access to restore it. This library targets 25.2.6+.
+  you need your own DevExpress license and feed access to restore it. This library targets
+  `DevExpress.Blazor` 25.2.x.
 
 ## Install
 
